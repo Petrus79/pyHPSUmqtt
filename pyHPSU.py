@@ -14,6 +14,10 @@
 # STATUSTOPIC = status ...for future use
 # QOS = 0
 # ADDTIMESTAMP = False ...whether or not to add timestamp to published values
+# SSL = False
+# CA_CERT = ca.crt
+# CLIENT_CERT = client.crt
+# CLIENT_KEY = client.key
 
 import serial
 import sys
