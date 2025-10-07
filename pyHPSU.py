@@ -14,6 +14,11 @@
 # STATUSTOPIC = status ...for future use
 # QOS = 0
 # ADDTIMESTAMP = False ...whether or not to add timestamp to published values
+# SSL_ENABLED = False ...enable SSL/TLS encryption
+# SSL_CA_CERT = ...path to CA certificate file for SSL verification
+# SSL_CERTFILE = ...path to client certificate file for client authentication
+# SSL_KEYFILE = ...path to client private key file for client authentication
+# SSL_INSECURE = False ...disable SSL certificate verification (for testing only)
 
 import serial
 import sys
@@ -34,6 +39,7 @@ import json
 import paho.mqtt.publish as publish
 import paho.mqtt.subscribe as subscribe
 import paho.mqtt.client as mqtt
+import ssl
 
 logger = None
 n_hpsu = None
@@ -196,6 +202,13 @@ def main(argv):
         mqtt_retain = mqtt_config.get('RETAIN', "NOT TRUE") == "True"
         # every other value implies false
         mqtt_addtimestamp = mqtt_config.get('ADDTIMESTAMP', "NOT TRUE") == "True"
+        
+        # SSL/TLS Configuration
+        mqtt_ssl_enabled = mqtt_config.get('SSL_ENABLED', "False") == "True"
+        mqtt_ssl_ca_cert = mqtt_config.get('SSL_CA_CERT', None)
+        mqtt_ssl_certfile = mqtt_config.get('SSL_CERTFILE', None)
+        mqtt_ssl_keyfile = mqtt_config.get('SSL_KEYFILE', None)
+        mqtt_ssl_insecure = mqtt_config.get('SSL_INSECURE', "False") == "True"
 
         logger.info("configuration parsing complete")   
 
@@ -261,6 +274,26 @@ def main(argv):
         if mqtt_username:
             mqtt_client.username_pw_set(mqtt_username, password=mqtt_password)
             mqtt_client.enable_logger()
+
+        # Configure SSL/TLS if enabled
+        if mqtt_ssl_enabled:
+            logger.info("Configuring SSL/TLS for MQTT connection")
+            context = ssl.create_default_context()
+            
+            if mqtt_ssl_ca_cert:
+                context.load_verify_locations(mqtt_ssl_ca_cert)
+                logger.info("Loaded CA certificate: " + mqtt_ssl_ca_cert)
+            
+            if mqtt_ssl_certfile and mqtt_ssl_keyfile:
+                context.load_cert_chain(mqtt_ssl_certfile, mqtt_ssl_keyfile)
+                logger.info("Loaded client certificate and key")
+            
+            if mqtt_ssl_insecure:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                logger.warning("SSL verification disabled - insecure mode enabled")
+            
+            mqtt_client.tls_set_context(context)
 
         mqtt_client.on_message=on_mqtt_message
         logger.info("connecting to broker: " + mqtt_brokerhost + ", port: " + str(mqtt_brokerport))
