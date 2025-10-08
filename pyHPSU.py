@@ -313,6 +313,8 @@ def main(argv):
         n_hpsu = HPSU(driver=options.driver, logger=logger, port=options.port, cmd=cmd, lg_code=options.lg_code)
         read_can(n_hpsu.backup_commands, options.verbose, options.output_type)
     elif options.auto:
+        # Create HPSU instance once outside the loop to avoid multiple instances
+        n_hpsu = HPSU(driver=options.driver, logger=logger, port=options.port, cmd=[], lg_code=options.lg_code)
         while loop:
             ticker+=1
             collected_cmds=[]
@@ -322,7 +324,7 @@ def main(argv):
                     for job in timed_jobs[period_string]:
                         collected_cmds.append(str(job))
             if len(collected_cmds):
-                n_hpsu = HPSU(driver=options.driver, logger=logger, port=options.port, cmd=collected_cmds, lg_code=options.lg_code)
+                # Reuse existing HPSU instance instead of creating new one
                 exec('thread_%s = threading.Thread(target=read_can, args=(collected_cmds,options.verbose,options.output_type))' % (period))
                 exec('thread_%s.start()' % (period))
             time.sleep(1)
@@ -356,10 +358,18 @@ def read_can(cmd, verbose, output_type):
     global mqtt_prefix
     global mqttdaemon_status_topic
     global mqtt_client
+    global n_hpsu
 
     arrResponse = []
 
-    for c in n_hpsu.commands:
+    # Filter commands based on the requested cmd list (if cmd is empty, use all commands)
+    if cmd:
+        listCmd = [r.split(":")[0] for r in cmd]
+        filtered_commands = [c for c in n_hpsu.command_dict.values() if c["name"] in listCmd]
+    else:
+        filtered_commands = list(n_hpsu.command_dict.values())
+
+    for c in filtered_commands:
             setValue = None
             for i in cmd:
                 if ":" in i and c["name"] == i.split(":")[0]:
@@ -461,7 +471,9 @@ def on_mqtt_message(client, userdata, message):
         hpsu_command_string = mqtt_command + ":" + mqtt_value
     hpsu_command_list = [hpsu_command_string]
     logger.info("setup HPSU to accept commands")
-    n_hpsu = HPSU(driver=options.driver, logger=logger, port=options.port, cmd=hpsu_command_list, lg_code=options.lg_code)
+    # Reuse existing HPSU instance if available, otherwise create new one
+    if 'n_hpsu' not in globals() or n_hpsu is None:
+        n_hpsu = HPSU(driver=options.driver, logger=logger, port=options.port, cmd=hpsu_command_list, lg_code=options.lg_code)
     logger.info("send command to hpsu: " + hpsu_command_string)
     #exec('thread_mqttdaemon = threading.Thread(target=read_can(hpsu_command_list, options.verbose, ["MQTTDAEMON"]))')
     #exec('thread_mqttdaemon.start()')
