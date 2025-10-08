@@ -10,6 +10,11 @@
 # PASSWORD = 
 # CLIENTNAME = rotex_hpsu
 # PREFIX = rotex
+# SSL_ENABLED = False
+# SSL_CA_CERT = 
+# SSL_CERTFILE = 
+# SSL_KEYFILE = 
+# SSL_INSECURE = False
 
 import configparser
 import requests
@@ -17,6 +22,7 @@ import sys
 import os
 import paho.mqtt.publish as publish
 import paho.mqtt.client as mqtt
+import ssl
 
 
 
@@ -48,6 +54,13 @@ class export():
         self.retain = self.mqtt_config.get('RETAIN', "NOT TRUE") == "True"
         # every other value implies false
         self.addtimestamp = self.mqtt_config.get('ADDTIMESTAMP', "NOT TRUE") == "True"
+        
+        # SSL/TLS Configuration
+        self.ssl_enabled = self.mqtt_config.get('SSL_ENABLED', "False") == "True"
+        self.ssl_ca_cert = self.mqtt_config.get('SSL_CA_CERT', None)
+        self.ssl_certfile = self.mqtt_config.get('SSL_CERTFILE', None)
+        self.ssl_keyfile = self.mqtt_config.get('SSL_KEYFILE', None)
+        self.ssl_insecure = self.mqtt_config.get('SSL_INSECURE', "False") == "True"
 
         self.logger.info("configuration parsing complete")   
 
@@ -56,12 +69,32 @@ class export():
         # different client name only for readability on broker and troubleshooting
         self.clientname += "-" + str(os.getpid())
 
-        self.logger.info("creating new mqtt client instance: " + self.clientname)
+        self.logger.info("Creating new MQTT plugin client instance: " + self.clientname)
         self.client=mqtt.Client(self.clientname)
         self.client.on_publish = self.on_publish
         if self.username:
            self.client.username_pw_set(self.username, password=self.password)
         self.client.enable_logger()
+        
+        # Configure SSL/TLS if enabled
+        if self.ssl_enabled:
+            self.logger.info("Configuring SSL/TLS for MQTT connection")
+            context = ssl.create_default_context()
+            
+            if self.ssl_ca_cert:
+                context.load_verify_locations(self.ssl_ca_cert)
+                self.logger.info("Loaded CA certificate: " + self.ssl_ca_cert)
+            
+            if self.ssl_certfile and self.ssl_keyfile:
+                context.load_cert_chain(self.ssl_certfile, self.ssl_keyfile)
+                self.logger.info("Loaded client certificate and key")
+            
+            if self.ssl_insecure:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                self.logger.warning("SSL verification disabled - insecure mode enabled")
+            
+            self.client.tls_set_context(context)
 
     
     def on_publish(self,client,userdata,mid):
