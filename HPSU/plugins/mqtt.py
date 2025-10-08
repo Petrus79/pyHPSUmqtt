@@ -69,7 +69,7 @@ class export():
         # different client name only for readability on broker and troubleshooting
         self.clientname += "-" + str(os.getpid())
 
-        self.logger.info("creating new mqtt client instance: " + self.clientname)
+        self.logger.info("Creating new MQTT plugin client instance: " + self.clientname)
         self.client=mqtt.Client(self.clientname)
         self.client.on_publish = self.on_publish
         if self.username:

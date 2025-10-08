@@ -268,7 +268,7 @@ def main(argv):
     if options.mqtt_daemon:
         # adding the PID at the end of the client name ensures every process have a different client name
         _mqttdaemon_clientname = mqtt_clientname + "-mqttdaemon-" + str(os.getpid())
-        logger.info("creating new mqtt client instance: " + _mqttdaemon_clientname)
+        logger.info("Creating new MQTT daemon client instance: " + _mqttdaemon_clientname)
         # a different client name because otherwise mqtt output plugin closes this connection, too
         mqtt_client = mqtt.Client(_mqttdaemon_clientname)
         if mqtt_username:
