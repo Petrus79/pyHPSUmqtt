@@ -53,9 +53,6 @@ mqtt_addtimestamp = False
 mqttdaemon_command_topic = "command"
 mqttdaemon_status_topic = "status"
 
-# Thread lock for CAN operations to prevent simultaneous access
-can_lock = threading.Lock()
-
 def my_except_hook(exctype, value, traceback):
     if exctype == KeyboardInterrupt:
         print("Interrupted by user")
@@ -366,7 +363,6 @@ def read_can(cmd, verbose, output_type):
     global mqttdaemon_status_topic
     global mqtt_client
     global n_hpsu
-    global can_lock
 
     arrResponse = []
 
@@ -394,9 +390,7 @@ def read_can(cmd, verbose, output_type):
 
             i = 0
             while i <= 3:
-                # Serialize CAN operations to prevent concurrent access conflicts
-                with can_lock:
-                    rc = n_hpsu.sendCommand(c, setValue)
+                rc = n_hpsu.sendCommand(c, setValue)
                 if rc != "KO":
                     i = 4
                     if not setValue:
