@@ -325,11 +325,7 @@ def main(argv):
                         collected_cmds.append(str(job))
             if len(collected_cmds):
                 # Reuse existing HPSU instance instead of creating new one
-                # Use MQTTDAEMON output in auto mode to avoid multiple plugin instances
-                auto_output_type = options.output_type.copy() if options.output_type else ["JSON"]
-                if options.mqtt_daemon and "MQTT" in auto_output_type:
-                    auto_output_type = [ot if ot != "MQTT" else "MQTTDAEMON" for ot in auto_output_type]
-                exec('thread_%s = threading.Thread(target=read_can, args=(collected_cmds,options.verbose,auto_output_type))' % (period))
+                exec('thread_%s = threading.Thread(target=read_can, args=(collected_cmds,options.verbose,options.output_type))' % (period))
                 exec('thread_%s.start()' % (period))
             time.sleep(1)
     # if a restore file is specified we are in restore mode
