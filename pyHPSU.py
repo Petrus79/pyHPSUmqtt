@@ -42,7 +42,7 @@ import paho.mqtt.client as mqtt
 import ssl
 
 # Import MQTT daemon manager
-from mqtt_daemon import MQTTDaemon, MQTTConnectionState
+from HPSU.mqtt_daemon import MQTTDaemon, MQTTConnectionState
 
 logger = None
 n_hpsu = None
