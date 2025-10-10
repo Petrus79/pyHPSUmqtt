@@ -95,8 +95,8 @@ def main(argv):
     #
     # get all plugins
     #
-    PLUGIN_LIST=["JSON", "CSV", "BACKUP"]
-    PLUGIN_STRING="JSON, CSV, BACKUP"
+    PLUGIN_LIST=["JSON", "CSV", "BACKUP", "MQTTDAEMON"]
+    PLUGIN_STRING="JSON, CSV, BACKUP, MQTTDAEMON"
     for file in os.listdir(PLUGIN_PATH):
         if file.endswith(".py") and not file.startswith("__"):
             PLUGIN=file.upper().split(".")[0]
