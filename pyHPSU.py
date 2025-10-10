@@ -41,6 +41,9 @@ import paho.mqtt.subscribe as subscribe
 import paho.mqtt.client as mqtt
 import ssl
 
+# Import MQTT daemon manager
+from HPSU.mqtt_daemon import MQTTDaemon, MQTTConnectionState
+
 logger = None
 n_hpsu = None
 # global options object
@@ -48,6 +51,7 @@ options = None
 mqtt_client = None
 mqtt_prefix = None
 mqtt_qos = 0
+mqtt_daemon = None
 mqtt_retain = False
 mqtt_addtimestamp = False
 mqttdaemon_command_topic = "command"
@@ -91,8 +95,8 @@ def main(argv):
     #
     # get all plugins
     #
-    PLUGIN_LIST=["JSON", "CSV", "BACKUP"]
-    PLUGIN_STRING="JSON, CSV, BACKUP"
+    PLUGIN_LIST=["JSON", "CSV", "BACKUP", "MQTTDAEMON"]
+    PLUGIN_STRING="JSON, CSV, BACKUP, MQTTDAEMON"
     for file in os.listdir(PLUGIN_PATH):
         if file.endswith(".py") and not file.startswith("__"):
             PLUGIN=file.upper().split(".")[0]
@@ -266,45 +270,51 @@ def main(argv):
         # and handle the data as configured
         #
     if options.mqtt_daemon:
-        # adding the PID at the end of the client name ensures every process have a different client name
-        _mqttdaemon_clientname = mqtt_clientname + "-mqttdaemon-" + str(os.getpid())
-        logger.info("Creating new MQTT daemon client instance: " + _mqttdaemon_clientname)
-        # a different client name because otherwise mqtt output plugin closes this connection, too
-        mqtt_client = mqtt.Client(_mqttdaemon_clientname)
-        if mqtt_username:
-            mqtt_client.username_pw_set(mqtt_username, password=mqtt_password)
-            mqtt_client.enable_logger()
-
-        # Configure SSL/TLS if enabled
-        if mqtt_ssl_enabled:
-            logger.info("Configuring SSL/TLS for MQTT connection")
-            context = ssl.create_default_context()
-            
-            if mqtt_ssl_ca_cert:
-                context.load_verify_locations(mqtt_ssl_ca_cert)
-                logger.info("Loaded CA certificate: " + mqtt_ssl_ca_cert)
-            
-            if mqtt_ssl_certfile and mqtt_ssl_keyfile:
-                context.load_cert_chain(mqtt_ssl_certfile, mqtt_ssl_keyfile)
-                logger.info("Loaded client certificate and key")
-            
-            if mqtt_ssl_insecure:
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
-                logger.warning("SSL verification disabled - insecure mode enabled")
-            
-            mqtt_client.tls_set_context(context)
-
-        mqtt_client.on_message=on_mqtt_message
-        logger.info("connecting to broker: " + mqtt_brokerhost + ", port: " + str(mqtt_brokerport))
-        mqtt_client.connect(mqtt_brokerhost, mqtt_brokerport)
-
-        command_topic = mqtt_prefix + "/" + mqttdaemon_command_topic + "/+"
-        logger.info("Subscribing to command topic: " + command_topic)
-        mqtt_client.subscribe(command_topic)
-
-        # this blocks execution
-        #mqtt_client.loop_forever()
+        global mqtt_daemon
+        
+        logger.info("Setting up MQTT daemon with enhanced reconnection capabilities")
+        
+        # Create MQTT configuration dictionary
+        mqtt_config = {
+            'broker_host': mqtt_brokerhost,
+            'broker_port': mqtt_brokerport,
+            'username': mqtt_username,
+            'password': mqtt_password,
+            'client_name': mqtt_clientname,
+            'prefix': mqtt_prefix,
+            'command_topic': mqttdaemon_command_topic,
+            'status_topic': mqttdaemon_status_topic,
+            'qos': mqtt_qos,
+            'ssl_enabled': mqtt_ssl_enabled,
+            'ssl_ca_cert': mqtt_ssl_ca_cert,
+            'ssl_certfile': mqtt_ssl_certfile,
+            'ssl_keyfile': mqtt_ssl_keyfile,
+            'ssl_insecure': mqtt_ssl_insecure,
+        }
+        
+        # Create MQTT daemon with Home Assistant-style reconnection
+        mqtt_daemon = MQTTDaemon(logger=logger, **mqtt_config)
+        
+        # Create and configure client with message callback
+        mqtt_client = mqtt_daemon.create_daemon_client(message_callback=on_mqtt_message)
+        
+        # Attempt initial connection
+        if mqtt_daemon.connect():
+            # Connection logging is handled by the MQTT daemon callback
+            pass
+        else:
+            logger.warning("Initial MQTT connection failed, but health monitor will keep trying")
+        
+        # Start health monitoring and signal handlers
+        mqtt_daemon.start_health_monitor()
+        mqtt_daemon.setup_signal_handlers()
+        
+        # Automatically add MQTTDAEMON to output types if not already present
+        if "MQTTDAEMON" not in options.output_type:
+            options.output_type.append("MQTTDAEMON")
+            logger.info("Auto-enabled MQTTDAEMON output type for MQTT daemon mode")
+        
+        # Start network loop if in auto mode
         if options.auto:
             mqtt_client.loop_start()
 
@@ -349,7 +359,16 @@ def main(argv):
 
     # if we reach this point (the end), we are not in auto mode so the loop is not started
     if mqtt_client is not None:
-        mqtt_client.loop_forever()
+        try:
+            logger.info("Starting MQTT daemon event loop")
+            mqtt_client.loop_forever()
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal")
+        except Exception as e:
+            logger.error(f"Error in MQTT daemon loop: {e}")
+        finally:
+            if mqtt_daemon:
+                mqtt_daemon.stop_daemon()
 
 
 def read_can(cmd, verbose, output_type):
