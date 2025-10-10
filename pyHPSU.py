@@ -300,7 +300,8 @@ def main(argv):
         
         # Attempt initial connection
         if mqtt_daemon.connect():
-            logger.info("Initial MQTT connection successful")
+            # Connection logging is handled by the MQTT daemon callback
+            pass
         else:
             logger.warning("Initial MQTT connection failed, but health monitor will keep trying")
         

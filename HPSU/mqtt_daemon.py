@@ -158,8 +158,6 @@ class MQTTDaemon:
     
     def _health_monitor(self):
         """Background thread to monitor MQTT connection health"""
-        self.logger.info("MQTT health monitor thread started")
-        
         # Wait a bit before starting monitoring to avoid initial connection conflicts
         time.sleep(5)
         
@@ -187,7 +185,7 @@ class MQTTDaemon:
         if rc == 0:
             # Only log if this is a new connection, not a duplicate callback
             if not self._connection_established:
-                self.logger.info("MQTT daemon connected successfully")
+                self.logger.info("Initial MQTT connection successful")
             
             self._state_listener(MQTTConnectionState.CONNECTED)
             
@@ -310,7 +308,7 @@ class MQTTDaemon:
                 
                 if self.client.is_connected():
                     self._connection_established = True
-                    self.logger.info("Initial MQTT connection successful")
+                    # Don't log here - let the callback handle logging
                     return True
                 else:
                     self.logger.error("MQTT connection timeout")
