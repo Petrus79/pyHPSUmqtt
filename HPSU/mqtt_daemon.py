@@ -74,6 +74,7 @@ class MQTTDaemon:
         
         # Connection state management
         self.connection_state = MQTTConnectionState.DISCONNECTED
+        self._connection_established = False  # Flag to prevent duplicate logging
         self.reconnect_delay = 5  # Initial delay in seconds
         self.max_reconnect_delay = 300  # Maximum delay (5 minutes)
         self.reconnect_attempts = 0
@@ -143,26 +144,38 @@ class MQTTDaemon:
     
     def _state_listener(self, state: MQTTConnectionState):
         """Handle MQTT connection state changes (Home Assistant pattern)"""
-        self.logger.info(f"MQTT connection state changed to: {state.value}")
-        self.connection_state = state
-        
-        if state == MQTTConnectionState.CONNECTION_LOST:
-            self._schedule_reconnect()
-        elif state == MQTTConnectionState.CONNECTED:
-            # Reset reconnection parameters on successful connection
-            self.reconnect_delay = 5
-            self.reconnect_attempts = 0
+        # Only log and process if state actually changed
+        if self.connection_state != state:
+            self.logger.info(f"MQTT connection state changed to: {state.value}")
+            self.connection_state = state
+            
+            if state == MQTTConnectionState.CONNECTION_LOST:
+                self._schedule_reconnect()
+            elif state == MQTTConnectionState.CONNECTED:
+                # Reset reconnection parameters on successful connection
+                self.reconnect_delay = 5
+                self.reconnect_attempts = 0
     
     def _health_monitor(self):
         """Background thread to monitor MQTT connection health"""
-        self.logger.info("MQTT health monitor started")
+        self.logger.info("MQTT health monitor thread started")
+        
+        # Wait a bit before starting monitoring to avoid initial connection conflicts
+        time.sleep(5)
         
         while not self.stop_health_monitor:
             try:
-                if self.client and not self.client.is_connected():
-                    if self.connection_state != MQTTConnectionState.CONNECTION_LOST:
-                        self._state_listener(MQTTConnectionState.CONNECTION_LOST)
+                # Only check connection if we expect to be connected
+                if (self.client and self._connection_established and 
+                    not self.client.is_connected() and 
+                    self.connection_state not in [MQTTConnectionState.CONNECTION_LOST]):
+                    
+                    self.logger.info("MQTT connection lost, triggering reconnection...")
+                    self._state_listener(MQTTConnectionState.CONNECTION_LOST)
+                
+                # Health check interval
                 time.sleep(30)  # Check every 30 seconds
+                
             except Exception as e:
                 self.logger.error(f"Error in MQTT health monitor: {e}")
                 time.sleep(10)
@@ -172,7 +185,10 @@ class MQTTDaemon:
     def _on_connect(self, client, userdata, flags, rc):
         """Enhanced MQTT connect callback with state management"""
         if rc == 0:
-            self.logger.info("MQTT daemon connected successfully")
+            # Only log if this is a new connection, not a duplicate callback
+            if not self._connection_established:
+                self.logger.info("MQTT daemon connected successfully")
+            
             self._state_listener(MQTTConnectionState.CONNECTED)
             
             # Subscribe to command topic
@@ -186,6 +202,10 @@ class MQTTDaemon:
                     self.logger.error(f"Failed to subscribe to {command_topic}, result: {result}")
             except Exception as e:
                 self.logger.error(f"Exception during subscription: {e}")
+            
+            # Reset reconnection parameters on successful connection
+            self.reconnect_delay = 5
+            self.reconnect_attempts = 0
             
             # Publish online status
             try:
@@ -215,6 +235,8 @@ class MQTTDaemon:
         else:
             self.logger.info("MQTT daemon disconnected gracefully")
             self._state_listener(MQTTConnectionState.DISCONNECTED)
+        
+        self._connection_established = False
     
     def _on_message(self, client, userdata, message):
         """MQTT message callback - delegates to external handler"""
@@ -268,31 +290,52 @@ class MQTTDaemon:
         Returns:
             bool: True if connection successful, False otherwise
         """
+        if self.client.is_connected():
+            self.logger.info("MQTT client already connected")
+            return True
+            
         try:
             self.logger.info(f"Connecting to MQTT broker: {self.broker_host}:{self.broker_port}")
+            
+            # Attempt connection
             result = self.client.connect(self.broker_host, self.broker_port, keepalive=60)
             
             if result == mqtt.MQTT_ERR_SUCCESS:
-                self.logger.info("Initial MQTT connection successful")
-                self._state_listener(MQTTConnectionState.CONNECTED)
-                return True
+                # Wait a moment for the connection to be established
+                timeout = 5  # 5 second timeout
+                start_time = time.time()
+                
+                while not self.client.is_connected() and (time.time() - start_time) < timeout:
+                    self.client.loop(timeout=0.1)
+                
+                if self.client.is_connected():
+                    self._connection_established = True
+                    self.logger.info("Initial MQTT connection successful")
+                    return True
+                else:
+                    self.logger.error("MQTT connection timeout")
+                    self._state_listener(MQTTConnectionState.DISCONNECTED)
+                    return False
             else:
-                self.logger.warning(f"Initial MQTT connection failed with code: {result}")
+                self.logger.error(f"MQTT connection failed with code: {result}")
                 self._state_listener(MQTTConnectionState.DISCONNECTED)
                 return False
                 
         except Exception as e:
-            self.logger.warning(f"Initial MQTT connection failed: {e}")
+            self.logger.error(f"MQTT connection error: {e}")
             self._state_listener(MQTTConnectionState.DISCONNECTED)
             return False
     
     def start_health_monitor(self):
-        """Start the health monitoring thread"""
-        if not self.health_monitor_thread or not self.health_monitor_thread.is_alive():
-            self.stop_health_monitor = False
-            self.health_monitor_thread = threading.Thread(target=self._health_monitor, daemon=True)
-            self.health_monitor_thread.start()
-            self.logger.info("MQTT health monitor started")
+        """Start health monitor only if not already running"""
+        if self.health_monitor_thread and self.health_monitor_thread.is_alive():
+            self.logger.debug("MQTT health monitor already running")
+            return
+            
+        self.stop_health_monitor = False
+        self.health_monitor_thread = threading.Thread(target=self._health_monitor, daemon=True)
+        self.health_monitor_thread.start()
+        self.logger.info("MQTT health monitor started")
     
     def stop_daemon(self):
         """Clean shutdown of MQTT daemon"""
