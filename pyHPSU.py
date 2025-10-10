@@ -309,6 +309,11 @@ def main(argv):
         mqtt_daemon.start_health_monitor()
         mqtt_daemon.setup_signal_handlers()
         
+        # Automatically add MQTTDAEMON to output types if not already present
+        if "MQTTDAEMON" not in options.output_type:
+            options.output_type.append("MQTTDAEMON")
+            logger.info("Auto-enabled MQTTDAEMON output type for MQTT daemon mode")
+        
         # Start network loop if in auto mode
         if options.auto:
             mqtt_client.loop_start()
