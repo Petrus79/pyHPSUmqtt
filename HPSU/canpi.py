@@ -7,6 +7,7 @@ import getopt
 import time
 import configparser
 import logging
+import os
 try:
     import can
 except Exception:

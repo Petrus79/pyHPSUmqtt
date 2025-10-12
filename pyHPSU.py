@@ -36,10 +36,6 @@ import argparse
 import configparser
 import threading
 import json
-import paho.mqtt.publish as publish
-import paho.mqtt.subscribe as subscribe
-import paho.mqtt.client as mqtt
-import ssl
 
 # Import MQTT daemon manager
 from HPSU.mqtt_daemon import MQTTDaemon, MQTTConnectionState
