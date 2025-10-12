@@ -6,10 +6,8 @@ from HPSU.canelm327 import CanELM327
 from HPSU.canemu import CanEMU
 from HPSU.canpi import CanPI
 from HPSU.cantcp import CanTCP
-import platform
 import datetime
 import locale
-import sys
 import csv
 import json
 import os.path
@@ -52,7 +50,7 @@ class HPSU(object):
             self.logger.info("HPSU %s, loading command traslations file: %s" % (cmd, command_translations_hpsu))
             # check, if commands are json or csv
             # read all known commands
-            with open(command_translations_hpsu, 'rU',encoding='utf-8') as csvfile:
+            with open(command_translations_hpsu, 'r',encoding='utf-8') as csvfile:
                 pyHPSUCSV = csv.reader(csvfile, delimiter=';', quotechar='"')
                 next(pyHPSUCSV, None) # skip the header
                 for row in pyHPSUCSV:
@@ -64,7 +62,7 @@ class HPSU(object):
             # read all known commands
             command_details_hpsu = '%s/commands_hpsu.json' % self.pathCOMMANDS
             self.logger.info("HPSU %s, loading command details file: %s" % (cmd, command_details_hpsu))
-            with open(command_details_hpsu, 'rU',encoding='utf-8') as jsonfile:
+            with open(command_details_hpsu, 'r',encoding='utf-8') as jsonfile:
                 self.all_commands = json.load(jsonfile)
                 self.command_dict=self.all_commands["commands"]
                 for single_command in self.command_dict:
