@@ -203,7 +203,7 @@ class HPSU(object):
         resp = response["resp"]
 
         if cmd["unit"] == HPSU.UM_DEGREE:
-            resp = locale.format("%.2f", round(response["resp"], 2))
+            resp = locale.format_string("%.2f", round(response["resp"], 2))
             if verbose == "2":
                 resp = "%s c" % resp
         elif cmd["unit"] == HPSU.UM_BOOLEAN:
