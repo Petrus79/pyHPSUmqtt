@@ -122,5 +122,8 @@ class CanPI(object):
                     self.hpsu.logger.error('CanPI %s, msg not sync, timeout' % cmd['name'])
                     notTimeout = False
                     rc = "KO"
+                else:
+                    # Add delay before next retry (but not after final timeout)
+                    time.sleep(0.01)  # 10ms delay between retries
 
         return rc
