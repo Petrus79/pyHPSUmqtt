@@ -34,7 +34,7 @@ class CanPI(object):
 
 
     def get_with_default(self, config, section, name, default):
-        if "config" not in config.sections():
+        if section not in config.sections():
             return default
         if config.has_option(section,name):
             return config.get(section,name)
