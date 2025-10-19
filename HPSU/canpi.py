@@ -124,6 +124,6 @@ class CanPI(object):
                     rc = "KO"
                 else:
                     # Add delay before next retry (but not after final timeout)
-                    time.sleep(0.01)  # 10ms delay between retries
+                    time.sleep(self.timeout)  # Delay between retries
 
         return rc
