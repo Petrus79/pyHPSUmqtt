@@ -122,5 +122,7 @@ class CanPI(object):
                     self.hpsu.logger.error('CanPI %s, msg not sync, timeout' % cmd['name'])
                     notTimeout = False
                     rc = "KO"
+                else:
+                    time.sleep(1)
 
         return rc
