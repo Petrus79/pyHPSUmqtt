@@ -101,7 +101,11 @@ class export():
     
     def on_publish(self, client, userdata, mid, reason_code, properties):
         """paho-mqtt v2 on_publish callback with updated signature"""
-        self.hpsu.logger.debug("mqtt output plugin data published, mid: " + str(mid))
+        msg = f"mqtt output plugin data published, mid: {mid}, reason_code: {reason_code}"
+        if reason_code != mqtt.MQTT_ERR_SUCCESS:
+            self.logger.error(f"MQTT publish failed: mid={mid}, reason_code={reason_code}")
+        else:
+            self.hpsu.logger.debug(msg)
 
     def pushValues(self, vars=None):
         self.logger.info("connecting to broker: " + self.brokerhost + ", port: " + str(self.brokerport))

@@ -214,7 +214,7 @@ class MQTTDaemon:
                 self.logger.warning(f"Failed to publish online status: {e}")
         else:
             # Handle reason codes for paho-mqtt v2
-            if hasattr(reason_code, 'getName'):
+            if reason_code is not None and hasattr(reason_code, 'getName'):
                 error_msg = reason_code.getName()
             else:
                 error_messages = {
