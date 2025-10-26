@@ -36,10 +36,6 @@ import argparse
 import configparser
 import threading
 import json
-import paho.mqtt.publish as publish
-import paho.mqtt.subscribe as subscribe
-import paho.mqtt.client as mqtt
-import ssl
 
 # Import MQTT daemon manager
 from HPSU.mqtt_daemon import MQTTDaemon, MQTTConnectionState
@@ -342,7 +338,7 @@ def main(argv):
     elif options.restore_file is not None:
         restore_commands=[]
         try:
-            with open(options.restore_file, 'rU') as jsonfile:
+            with open(options.restore_file, 'r') as jsonfile:
                 restore_settings=json.load(jsonfile)
                 for command in restore_settings:
                     restore_commands.append(str(command["name"]) + ":" + str(command["resp"]))
@@ -517,4 +513,4 @@ if __name__ == "__main__":
         traceback.print_exc()
         #print("Exception: {}".format(type(e).__name__))
         #print("Exception message: {}".format(e))
-        sys.exit(os.SOFTWARE)
+        sys.exit(os.EX_SOFTWARE)

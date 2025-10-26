@@ -13,6 +13,8 @@ Features:
 - Clean shutdown procedures
 - Thread-safe operations
 - SSL/TLS support
+
+Updated for paho-mqtt v2.x
 """
 
 import time
@@ -21,7 +23,6 @@ import threading
 import logging
 import signal
 import ssl
-from datetime import datetime
 from enum import Enum
 import paho.mqtt.client as mqtt
 
@@ -180,9 +181,9 @@ class MQTTDaemon:
         
         self.logger.info("MQTT health monitor stopped")
     
-    def _on_connect(self, client, userdata, flags, rc):
-        """Enhanced MQTT connect callback with state management"""
-        if rc == 0:
+    def _on_connect(self, client, userdata, flags, reason_code, properties):
+        """Enhanced MQTT connect callback with paho-mqtt v2 state management"""
+        if reason_code == 0:
             # Only log if this is a new connection, not a duplicate callback
             if not self._connection_established:
                 self.logger.info("Initial MQTT connection successful")
@@ -193,11 +194,9 @@ class MQTTDaemon:
             command_topic = f"{self.prefix}/{self.command_topic}/+"
             self.logger.info(f"Subscribing to command topic: {command_topic}")
             try:
-                result, mid = client.subscribe(command_topic, qos=self.qos)
-                if result == mqtt.MQTT_ERR_SUCCESS:
-                    self.logger.info(f"Successfully subscribed to {command_topic}")
-                else:
-                    self.logger.error(f"Failed to subscribe to {command_topic}, result: {result}")
+                # paho-mqtt v2 returns a SubscribeResult object
+                client.subscribe(command_topic, qos=self.qos)
+                self.logger.info(f"Successfully subscribed to {command_topic}")
             except Exception as e:
                 self.logger.error(f"Exception during subscription: {e}")
             
@@ -214,21 +213,30 @@ class MQTTDaemon:
             except Exception as e:
                 self.logger.warning(f"Failed to publish online status: {e}")
         else:
-            error_messages = {
-                1: "Incorrect protocol version",
-                2: "Invalid client identifier", 
-                3: "Server unavailable",
-                4: "Bad username or password",
-                5: "Not authorized"
-            }
-            error_msg = error_messages.get(rc, f"Unknown error code: {rc}")
+            # Handle reason codes for paho-mqtt v2
+            if reason_code is not None and hasattr(reason_code, 'getName'):
+                error_msg = reason_code.getName()
+            else:
+                error_messages = {
+                    1: "Incorrect protocol version",
+                    2: "Invalid client identifier", 
+                    3: "Server unavailable",
+                    4: "Bad username or password",
+                    5: "Not authorized"
+                }
+                error_msg = error_messages.get(reason_code, f"Unknown error code: {reason_code}")
+            
             self.logger.error(f"MQTT daemon connection failed: {error_msg}")
             self._state_listener(MQTTConnectionState.DISCONNECTED)
     
-    def _on_disconnect(self, client, userdata, rc):
-        """Enhanced MQTT disconnect callback with state management"""
-        if rc != 0:
-            self.logger.warning(f"MQTT daemon disconnected unexpectedly (code: {rc})")
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties):
+        """Enhanced MQTT disconnect callback with paho-mqtt v2 state management"""
+        if reason_code != 0:
+            if hasattr(reason_code, 'getName'):
+                error_msg = reason_code.getName()
+            else:
+                error_msg = f"code: {reason_code}"
+            self.logger.warning(f"MQTT daemon disconnected unexpectedly ({error_msg})")
             self._state_listener(MQTTConnectionState.CONNECTION_LOST)
         else:
             self.logger.info("MQTT daemon disconnected gracefully")
@@ -243,7 +251,7 @@ class MQTTDaemon:
     
     def create_daemon_client(self, message_callback=None):
         """
-        Create and configure MQTT daemon client
+        Create and configure MQTT daemon client with paho-mqtt v2
         
         Args:
             message_callback: Function to handle incoming messages
@@ -253,11 +261,17 @@ class MQTTDaemon:
         """
         self.message_callback = message_callback
         
-        # Create MQTT client with clean session for reliability
+        # Create MQTT client with paho-mqtt v2 callback API
         client_name = f"{self.client_name}-mqttdaemon-{threading.current_thread().ident}"
-        self.client = mqtt.Client(client_name, clean_session=True)
         
-        # Set up callbacks
+        # Use VERSION2 callback API for paho-mqtt v2
+        self.client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=client_name,
+            clean_session=True
+        )
+        
+        # Set up callbacks with v2 signatures
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
@@ -283,39 +297,34 @@ class MQTTDaemon:
     
     def connect(self):
         """
-        Connect to MQTT broker with enhanced error handling
+        Connect to MQTT broker with enhanced error handling (paho-mqtt v2)
         
         Returns:
             bool: True if connection successful, False otherwise
         """
-        if self.client.is_connected():
+        if self.client and self.client.is_connected():
             self.logger.info("MQTT client already connected")
             return True
             
         try:
             self.logger.info(f"Connecting to MQTT broker: {self.broker_host}:{self.broker_port}")
             
-            # Attempt connection
-            result = self.client.connect(self.broker_host, self.broker_port, keepalive=60)
+            # paho-mqtt v2: connect() returns None on success, raises exception on failure
+            self.client.connect(self.broker_host, self.broker_port, keepalive=60)
             
-            if result == mqtt.MQTT_ERR_SUCCESS:
-                # Wait a moment for the connection to be established
-                timeout = 5  # 5 second timeout
-                start_time = time.time()
-                
-                while not self.client.is_connected() and (time.time() - start_time) < timeout:
-                    self.client.loop(timeout=0.1)
-                
-                if self.client.is_connected():
-                    self._connection_established = True
-                    # Don't log here - let the callback handle logging
-                    return True
-                else:
-                    self.logger.error("MQTT connection timeout")
-                    self._state_listener(MQTTConnectionState.DISCONNECTED)
-                    return False
+            # Wait a moment for the connection to be established
+            timeout = 5  # 5 second timeout
+            start_time = time.time()
+            
+            while not self.client.is_connected() and (time.time() - start_time) < timeout:
+                self.client.loop(timeout=0.1)
+            
+            if self.client.is_connected():
+                self._connection_established = True
+                # Don't log here - let the callback handle logging
+                return True
             else:
-                self.logger.error(f"MQTT connection failed with code: {result}")
+                self.logger.error("MQTT connection timeout")
                 self._state_listener(MQTTConnectionState.DISCONNECTED)
                 return False
                 

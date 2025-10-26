@@ -17,10 +17,8 @@
 # SSL_INSECURE = False
 
 import configparser
-import requests
 import sys
 import os
-import paho.mqtt.publish as publish
 import paho.mqtt.client as mqtt
 import ssl
 
@@ -70,7 +68,11 @@ class export():
         self.clientname += "-" + str(os.getpid())
 
         self.logger.info("Creating new MQTT plugin client instance: " + self.clientname)
-        self.client=mqtt.Client(self.clientname)
+        # Use paho-mqtt v2 callback API
+        self.client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=self.clientname
+        )
         self.client.on_publish = self.on_publish
         if self.username:
            self.client.username_pw_set(self.username, password=self.password)
@@ -97,23 +99,24 @@ class export():
             self.client.tls_set_context(context)
 
     
-    def on_publish(self,client,userdata,mid):
-        self.hpsu.logger.debug("mqtt output plugin data published, mid: " + str(mid))
+    def on_publish(self, client, userdata, mid, reason_code, properties):
+        """paho-mqtt v2 on_publish callback with updated signature"""
+        msg = f"mqtt output plugin data published, mid: {mid}, reason_code: {reason_code}"
+        if reason_code != mqtt.MQTT_ERR_SUCCESS:
+            self.logger.error(f"MQTT publish failed: mid={mid}, reason_code={reason_code}")
+        else:
+            self.hpsu.logger.debug(msg)
 
     def pushValues(self, vars=None):
-
         self.logger.info("connecting to broker: " + self.brokerhost + ", port: " + str(self.brokerport))
+        
+        # paho-mqtt v2: connect() returns None on success, raises exception on failure
         self.client.connect(self.brokerhost, port=self.brokerport)
 
-        #self.msgs=[]
         for r in vars:
-            msgs=[]
             if self.prefix:
-                ret=self.client.publish(self.prefix + "/" + r['name'],payload=r['resp'], qos=int(self.qos))
-                topic=self.prefix + "/" + r['name']
+                self.client.publish(self.prefix + "/" + r['name'], payload=r['resp'], qos=int(self.qos))
             else:
-                ret=self.client.publish(r['name'],payload=r['resp'], qos=int(self.qos))
-                topic=r['name']
-            msg={'topic':topic,'payload':r['resp'], 'qos':self.qos, 'retain':False}
+                self.client.publish(r['name'], payload=r['resp'], qos=int(self.qos))
 
         self.client.disconnect()

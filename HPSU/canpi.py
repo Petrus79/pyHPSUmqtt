@@ -7,6 +7,7 @@ import getopt
 import time
 import configparser
 import logging
+import os
 try:
     import can
 except Exception:
@@ -33,7 +34,7 @@ class CanPI(object):
 
 
     def get_with_default(self, config, section, name, default):
-        if "config" not in config.sections():
+        if section not in config.sections():
             return default
         if config.has_option(section,name):
             return config.get(section,name)
@@ -121,5 +122,8 @@ class CanPI(object):
                     self.hpsu.logger.error('CanPI %s, msg not sync, timeout' % cmd['name'])
                     notTimeout = False
                     rc = "KO"
+                else:
+                    # Add delay before next retry (but not after final timeout)
+                    time.sleep(self.timeout)  # Delay between retries
 
         return rc
