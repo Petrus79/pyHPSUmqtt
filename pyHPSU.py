@@ -424,7 +424,7 @@ def read_can(cmd, verbose, output_type):
                 else:
                     i += 1
                     time.sleep(2.0)
-                    logger.warning('retry %s command %s' % (i, c["name"]))
+                    logger.debug('retry %s command %s' % (i, c["name"]))
                     if i == 4:
                         logger.error('command %s failed' % (c["name"]))
 

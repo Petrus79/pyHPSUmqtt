@@ -119,7 +119,7 @@ class CanPI(object):
             if notTimeout:
                 self.hpsu.logger.debug('CanPI %s, msg not sync, retry: %s' % (cmd['name'], i))
                 if i >= self.retry:
-                    self.hpsu.logger.error('CanPI %s, msg not sync, timeout' % cmd['name'])
+                    self.hpsu.logger.debug('CanPI %s, msg not sync, timeout' % cmd['name'])
                     notTimeout = False
                     rc = "KO"
                 else:
