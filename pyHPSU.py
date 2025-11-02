@@ -111,7 +111,7 @@ def main(argv):
     backup_restore_group.add_argument("-b", "--backup", dest="backup_file", help="backup configurable settings to file [filename]")
     backup_restore_group.add_argument("-r", "--restore", dest="restore_file", help="restore HPSU settings from file [filename]")
     parser.add_argument("-g", "--log", dest="log_file", help="set the log to file [filename]")
-    parser.add_argument("--log_level", choices=LOG_LEVEL_LIST, type=str.upper, default="ERROR", help="set the log level to [" + ", ".join(LOG_LEVEL_LIST) + "]")
+    parser.add_argument("--log_level", choices=LOG_LEVEL_LIST, type=str.upper, default="INFO", help="set the log level to [" + ", ".join(LOG_LEVEL_LIST) + "]")
     parser.add_argument("-l", "--language", dest="lg_code", choices=languages, type=str.upper, default="EN", help="set the language to use [%s], default is \"EN\" " % " ".join(languages))
     parser.add_argument("-d", "--driver", type=str.upper, default="PYCAN", help="driver name: [ELM327, PYCAN, EMU, HPSUD], Default: PYCAN")
     parser.add_argument("-c", "--cmd", action="append", help="command: [see commands dictionary]")
