@@ -426,7 +426,7 @@ def read_can(cmd, verbose, output_type):
                     time.sleep(2.0)
                     logger.debug('retry %s command %s' % (i, c["name"]))
                     if i == 4:
-                        logger.error('command %s failed' % (c["name"]))
+                        logger.debug('command %s failed' % (c["name"]))
 
     for output_type_name in output_type: 
         if output_type_name == "JSON":
