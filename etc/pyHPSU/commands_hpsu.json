@@ -314,7 +314,8 @@
 				"standby" :"0",
 				"heating" : "1",
 				"cooling" : "2", 
-				"3": "3"
+				"defrost": "3",
+				"water heating" : "4"
 			}
 		},
 		"pump" : { 
