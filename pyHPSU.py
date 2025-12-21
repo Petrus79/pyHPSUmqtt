@@ -485,11 +485,11 @@ def on_mqtt_message(client, userdata, message):
     else:
         hpsu_command_string = mqtt_command + ":" + mqtt_value
     hpsu_command_list = [hpsu_command_string]
-    logger.info("setup HPSU to accept commands")
+    logger.debug("setup HPSU to accept commands")
     # Reuse existing HPSU instance if available, otherwise create new one
     if 'n_hpsu' not in globals() or n_hpsu is None:
         n_hpsu = HPSU(driver=options.driver, logger=logger, port=options.port, cmd=hpsu_command_list, lg_code=options.lg_code)
-    logger.info("send command to hpsu: " + hpsu_command_string)
+    logger.debug("send command to hpsu: " + hpsu_command_string)
     #exec('thread_mqttdaemon = threading.Thread(target=read_can(hpsu_command_list, options.verbose, ["MQTTDAEMON"]))')
     #exec('thread_mqttdaemon.start()')
     read_can(hpsu_command_list, options.verbose, ["MQTTDAEMON"])
@@ -499,7 +499,7 @@ def on_mqtt_message(client, userdata, message):
         hpsu_command_string_reread_after_write_list = [hpsu_command_string_reread_after_write]
         #exec('thread_mqttdaemon_reread = threading.Thread(target=read_can(hpsu_command_string_reread_after_write_list, options.verbose, ["MQTTDAEMON"]))')
         #exec('thread_mqttdaemon_reread.start()')
-        logger.info("send same command in read mode to hpsu: " + hpsu_command_string)
+        logger.debug("send same command in read mode to hpsu: " + hpsu_command_string)
         read_can(hpsu_command_string_reread_after_write_list, options.verbose, ["MQTTDAEMON"])
     # restarts the loop
     if options.auto:
